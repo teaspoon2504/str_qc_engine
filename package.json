@@ -1,0 +1,27 @@
+{
+  "name": "aml-str-qc-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:gateway": "node services/gateway/src/index.js",
+    "start:document": "node services/document-service/src/index.js",
+    "start:qc": "node services/qc-service/src/index.js",
+    "start:approval": "node services/approval-service/src/index.js",
+    "start:all": "node scripts/start-all.js",
+    "stop:all": "node scripts/stop-all.js",
+    "test:services": "node scripts/test-services.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "docx": "^9.1.1",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.3",
+    "mammoth": "^1.8.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.13.3"
+  }
+}

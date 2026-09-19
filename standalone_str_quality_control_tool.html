@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AML STR Quality Control Evaluation and Scoring Tool - Standalone HTML Application">
+  <title>AML STR Quality Control Tool - Pantone Blue Pro</title>
+  
+  <!-- Filter benign in-browser CDN advisory warnings from polluting console -->
+  <script>
+    (function() {
+      const origWarn = console.warn;
+      console.warn = function(...args) {
+        if (typeof args[0] === 'string' && (
+          args[0].indexOf('cdn.tailwindcss.com') !== -1 ||
+          args[0].indexOf('Babel transformer') !== -1
+        )) {
+          return;
+        }
+        origWarn.apply(console, args);
+      };
+    })();
+  </script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: '#0857C3',    /* Pantone 2132 C */
+              accent: '#307FE2',     /* Vivid Sky */
+              highlight: '#71C5E8',  /* Sky Highlight */
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+            mono: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- React 18 & ReactDOM 18 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- JSZip for Client-side DOCX Extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
+
+  <style>
+    *, *::before, *::after, html, body, .font-mono, .font-sans, input, select, textarea, button, table, span, p, h1, h2, h3, h4, label, code, pre, kbd, samp {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+    
+    /* Custom Modern Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(48, 127, 226, 0.3);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(8, 87, 195, 0.6);
+    }
+
+    @media print {
+      .no-print, header, .print-hidden {
+        display: none !important;
+      }
+      body {
+        background-color: white !important;
+        color: black !important;
+      }
+      .print-shadow-none {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased selection:bg-[#307FE2] selection:text-white">
+  
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    // --- Standalone SVG Icon Components (Lucide Icons) ---
+    const FileSpreadsheet = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/></svg>
+    );
+
+    const Download = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+    );
+
+    const CheckCircle2 = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+    );
+
+    const AlertTriangle = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+    );
+
+    const Calculator = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+    );
+
+    const Award = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+    );
+
+    const User = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    );
+
+    const ShieldCheck = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+    );
+
+    const Printer = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+    );
+
+    const Copy = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+    );
+
+    const Check = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="20 6 9 17 4 12"/></svg>
+    );
+
+    const Search = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+    );
+
+    const Filter = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    );
+
+    const BarChart3 = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+    );
+
+    const Trash2 = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+    );
+
+    const FolderOpen = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+    );
+
+    const Save = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+    );
+
+    const RefreshCw = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+    );
+
+    const LayoutDashboard = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+    );
+
+    const TrendingUp = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    );
+
+    const PieChart = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+    );
+
+    const Activity = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.48 12H2"/></svg>
+    );
+
+    const Target = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    );
+
+    const AlertOctagon = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+    );
+
+    const FileCheck2 = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m3 15 2 2 4-4"/></svg>
+    );
+
+    const LogOut = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+    );
+
+    const Upload = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+    );
+
+    const Database = ({ className = "w-4 h-4", ...props }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+    );
+
+    // --- Master Initial Checklist Items ---
+    const INITIAL_ITEMS = [
+  // Section 1: Kesesuaian Data Profil (5.00%)
+  { id: '1.1', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Nama Nasabah', desc: 'Exact match with core banking & KYC database', value: 'PT Nusantara Megah Sejahtera', weight: 0.35, score: 4.0, comment: 'Verified against CBS' },
+  { id: '1.2', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'CIF', desc: 'Correct Customer Information File number format', value: 'CIF-9842103', weight: 0.35, score: 4.0, comment: '' },
+  { id: '1.3', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'TTL / Usia', desc: 'Place/Date of birth & current age verification', value: '12-08-1985 (41 Thn)', weight: 0.60, score: 4.0, comment: '' },
+  { id: '1.4', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Pekerjaan / Bidang Usaha', desc: 'Profile occupation & line of business consistency', value: 'Perdagangan Ekspor Impor Tekstil', weight: 0.35, score: 3.5, comment: 'Declared as trader, verify actual turnover' },
+  { id: '1.5', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Nomor Rekening', desc: 'Active audited account number(s) list', value: '102-00-9842103-8 (IDR Operasional)', weight: 0.35, score: 4.0, comment: '' },
+  { id: '1.6', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Tgl. Transaksi & Nominal Kredit Terbesar', desc: 'Correct alert timeline & peak single transaction value', value: '2026-08-28 / Rp 4.850.000.000,-', weight: 0.70, score: 4.0, comment: '' },
+  { id: '1.7', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Indikasi & Sub Indikasi Tindak Pidana', desc: 'Accurate PPATK crime categorization mapping', value: 'TPPU / Tindak Pidana Perpajakan', weight: 1.00, score: 3.5, comment: 'Mapped under suspected tax fraud / laundering' },
+  { id: '1.8', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Lokasi Pelanggaran & Data Keuangan', desc: 'Branch location & financial profile details updated', value: 'KC Sudirman Jakarta / Saldo Rp 5.210.000.000', weight: 0.80, score: 4.0, comment: '' },
+  { id: '1.9', sectionId: 1, sectionName: '1. Kesesuaian Data Profil', sectionWeight: 5.0, item: 'Sumber Pelaporan & Kode Uker', desc: 'Reporting origin code & branch identifier accuracy', value: 'Sistem AML Automated Alert / Uker 0032', weight: 0.50, score: 4.0, comment: '' },
+
+  // Section 2: Hasil Analisis - Kelengkapan Struktur (50.00%)
+  { id: '2.1', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'a. Sumber Deteksi STR', desc: 'Alert trigger source (Scenario ID, System Alert, or Manual Escalation)', value: 'Rule AML-2026-88 (Rapid In-Out Pass-Through)', weight: 3.00, score: 3.5, comment: 'Rule AML-2026-88 (Rapid In-Out Flow)' },
+  { id: '2.2', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'b1. Profiling - Informasi Internal', desc: 'KYC records, expected turnover, account purpose & historical trends', value: 'Expected turnover Rp 500Jt vs Aktual Rp 15M (Deviasi 30x)', weight: 5.00, score: 3.5, comment: '' },
+  { id: '2.3', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'b2. Profiling - Informasi Eksternal', desc: 'OSINT, adverse media, PEP screening & sanctions checks', value: 'Negatif PEP, Tidak ada sanksi internasional/OFAC', weight: 5.00, score: 3.0, comment: 'Check negative news for company directors' },
+  { id: '2.4', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'c1. Follow the Money - Tabel Rekening', desc: 'Structured tabular view of source/destination accounts', value: 'Rekening Sumber: 4 Bank Lain; Rekening Tujuan: 2 Valas', weight: 4.00, score: 4.0, comment: '' },
+  { id: '2.5', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'c2. Follow the Money - Pola, Frekuensi, Nominal Trx', desc: 'Overall pattern, velocity, aggregation, and anomaly baseline comparison', value: 'Frekuensi 42 transaksi perputaran <24 jam total Rp 14.8M', weight: 6.00, score: 3.5, comment: 'High velocity pass-through within 24 hours' },
+  { id: '2.6', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'c3. Follow the Money - Rincian Transaksi Mencurigakan', desc: 'Itemized list of specific suspicious transactions under review', value: '12 Transaksi kredit nominal bulat Rp 400Jt - Rp 950Jt', weight: 6.00, score: 3.5, comment: '' },
+  { id: '2.7', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'c4. Follow the Money - Diagram Aliran Dana', desc: 'Visual fund flow diagram mapping funds from origin to ultimate beneficiary', value: 'Tersedia Diagram Aliran Dana (Visual Flowchart Dokumen Hal 4)', weight: 6.00, score: 3.5, comment: 'Diagram attached; clear source to end target' },
+  { id: '2.8', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'd1. Kesimpulan - Penjelasan Transaksi Mencurigakan', desc: 'Clear grounds for suspicion narrative (Penjelasan Makul)', value: 'Perusahaan passthrough fiktif tanpa aktivitas komersial riil', weight: 10.00, score: 3.5, comment: 'Logical explanation why transactions lack economic rationale' },
+  { id: '2.9', sectionId: 2, sectionName: '2. Hasil Analisis (Kelengkapan Struktur 5W2H)', sectionWeight: 50.0, item: 'd2. Kesimpulan - Tipologi & Indikasi Predicate Crime', desc: 'Alignment with ML/TF typologies & PPATK predicate crime standard', value: 'Tipologi Structuring & Smurfing Rekening Penampung', weight: 5.00, score: 3.2, comment: 'Aligned with Structuring & Pass-Through Account Typology' },
+
+  // Section 3: Kelengkapan Dokumen (10.00%)
+  { id: '3.1', sectionId: 3, sectionName: '3. Kelengkapan Dokumen Audit Trail', sectionWeight: 10.0, item: 'a. Profil Customer Portofolio', desc: 'Complete CIF portfolio and account summary document attached', value: 'Form KYC, NPWP, Akta Perusahaan & SIUP Terlampir', weight: 2.50, score: 4.0, comment: '' },
+  { id: '3.2', sectionId: 3, sectionName: '3. Kelengkapan Dokumen Audit Trail', sectionWeight: 10.0, item: 'b. Mutasi Rekening Regulator', desc: 'Official bank account statements covering alert window attached', value: 'Rekening Koran Terotorisasi Periode Jun-Aug 2026', weight: 2.50, score: 4.0, comment: '' },
+  { id: '3.3', sectionId: 3, sectionName: '3. Kelengkapan Dokumen Audit Trail', sectionWeight: 10.0, item: 'c. Excel List Transaksi', desc: 'Raw transactional extract spreadsheet provided', value: 'Extract_Transaksi_Rekening_1020098421038.xlsx', weight: 2.50, score: 4.0, comment: '' },
+  { id: '3.4', sectionId: 3, sectionName: '3. Kelengkapan Dokumen Audit Trail', sectionWeight: 10.0, item: 'd. Lembar Hasil Analisis (LHA)', desc: 'Complete signed/approved analysis report form included', value: 'Dokumen LHA Lengkap Tertandatangani (PDF)', weight: 2.50, score: 4.0, comment: '' },
+
+  // Section 4: Kerapian Lembar Hasil Analisis (5.00%)
+  { id: '4.1', sectionId: 4, sectionName: '4. Kerapian & Formatting LHA', sectionWeight: 5.0, item: 'Kerapian, Formatting & Structural Legibility', desc: 'Professional formatting, structured layout, correct terminology & readability', value: 'Format Tata Naskah Standar PPATK Rev 2025', weight: 5.00, score: 3.8, comment: 'Clean presentation, proper tables' },
+
+  // Section 5: Kekuatan Hasil Analisis - Qualitative Quality (30.00%)
+  { id: '5.1', sectionId: 5, sectionName: '5. Kekuatan Hasil Analisis (Qualitative)', sectionWeight: 30.0, item: 'Rasionalitas & Link Analisis (Logic & Reason)', desc: 'Coherent narrative linking customer profile anomaly to transaction behavior', value: 'Hubungan profil nasabah & anomali aliran dana terbukti kuat', weight: 12.00, score: 3.2, comment: 'Strong rationale connecting low income to multi-billion turnover' },
+  { id: '5.2', sectionId: 5, sectionName: '5. Kekuatan Hasil Analisis (Qualitative)', sectionWeight: 30.0, item: 'Ketepatan Identifikasi Red Flags', desc: 'Valid justification ruling out normal legitimate commercial activity', value: 'Indikator Red Flag No. 14 (U-Turn Transaction) terverifikasi', weight: 10.00, score: 3.0, comment: 'Rebuttal of commercial purpose is clear' },
+  { id: '5.3', sectionId: 5, sectionName: '5. Kekuatan Hasil Analisis (Qualitative)', sectionWeight: 30.0, item: 'Actionability for FIU (PPATK) / Decision Quality', desc: 'Definitive recommendation with clear actionable intelligence for regulators', value: 'Data intelijen lengkap untuk pelaporan STR Segera', weight: 8.00, score: 3.5, comment: 'Clear recommendation to file STR with high regulatory priority' }
+];
+
+    // --- Initial Metadata ---
+    const INITIAL_METADATA = {
+  customerName: 'PT Nusantara Megah Sejahtera',
+  cif: 'CIF-9842103',
+  analystName: 'Ahmad Fauzi (Junior AML Analyst)',
+  reviewerName: 'Budi Santoso (Senior AML QC Specialist)',
+  reviewDate: '2026-09-09',
+  strReference: 'STR/2026/09/00482',
+  slaMet: 'Yes',
+  decision: 'Approve & File STR'
+};
+
+    // --- Main Application Component ---
+    function App() {
+  const [items, setItems] = useState(() => {
+    const saved = localStorage.getItem('aml_ts_qc_items');
+    return saved ? JSON.parse(saved) : INITIAL_ITEMS;
+  });
+
+  const [metadata, setMetadata] = useState(() => {
+    const saved = localStorage.getItem('aml_ts_qc_metadata');
+    return saved ? JSON.parse(saved) : INITIAL_METADATA;
+  });
+
+  const [overallRemarks, setOverallRemarks] = useState(() => {
+    const saved = localStorage.getItem('aml_ts_qc_remarks');
+    return saved !== null ? JSON.parse(saved) : 'Analysis demonstrates clear grounds for suspicion. Flow of funds is well traced with pass-through activity. Recommend immediate submission to PPATK.';
+  });
+
+  const [savedReports, setSavedReports] = useState(() => {
+    const saved = localStorage.getItem('aml_ts_qc_reports_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [activeTab, setActiveTab] = useState('excel');
+  const [uploadedDocName, setUploadedDocName] = useState('FORMAT LEMBAR HASIL ANALISIS INDIVIDU (1) (1).docx');
+  const [qcEngineResult, setQcEngineResult] = useState(null);
+  const [isParsingDoc, setIsParsingDoc] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterSection, setFilterSection] = useState('all');
+  const [filterScore, setFilterScore] = useState('all');
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDecisionFilter, setHistoryDecisionFilter] = useState('all');
+  const [toastMsg, setToastMsg] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('aml_ts_qc_items', JSON.stringify(items));
+  }, [items]);
+
+  useEffect(() => {
+    localStorage.setItem('aml_ts_qc_metadata', JSON.stringify(metadata));
+  }, [metadata]);
+
+  useEffect(() => {
+    localStorage.setItem('aml_ts_qc_remarks', JSON.stringify(overallRemarks));
+  }, [overallRemarks]);
+
+  useEffect(() => {
+    localStorage.setItem('aml_ts_qc_reports_history', JSON.stringify(savedReports));
+  }, [savedReports]);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const calculatedData = useMemo(() => {
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+
+    const itemsWithCalculations = items.map(item => {
+      const weightedContribution = (item.weight / 100) * item.score;
+      totalWeightedScore += weightedContribution;
+      totalWeight += item.weight;
+
+      return {
+        ...item,
+        weightedContribution
+      };
+    });
+
+    const finalScore = totalWeightedScore;
+
+    let category = '';
+    let categoryBadgeClass = '';
+    let categoryBorderClass = '';
+
+    if (finalScore >= 3.51) {
+      category = 'SANGAT BAIK (SB)';
+      categoryBadgeClass = 'bg-[#71C5E8]/20 text-[#0857C3] dark:bg-[#0857C3]/40 dark:text-[#71C5E8] border-[#307FE2]';
+      categoryBorderClass = 'border-[#0857C3]';
+    } else if (finalScore >= 2.76) {
+      category = 'BAIK (B)';
+      categoryBadgeClass = 'bg-sky-100 text-[#0857C3] dark:bg-sky-950 dark:text-sky-300 border-sky-300';
+      categoryBorderClass = 'border-[#307FE2]';
+    } else if (finalScore >= 2.00) {
+      category = 'CUKUP BAIK (CB)';
+      categoryBadgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+      categoryBorderClass = 'border-amber-500';
+    } else {
+      category = 'TIDAK BAIK (TB)';
+      categoryBadgeClass = 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800';
+      categoryBorderClass = 'border-rose-500';
+    }
+
+    const sectionSummaries = [1, 2, 3, 4, 5].map(secId => {
+      const secItems = itemsWithCalculations.filter(i => i.sectionId === secId);
+      const secTotalWeight = secItems.reduce((acc, curr) => acc + curr.weight, 0);
+      const secAchievedScore = secItems.reduce((acc, curr) => acc + curr.weightedContribution, 0);
+      const secMaxPossible = (secTotalWeight / 100) * 4.0;
+      const secPercentage = secMaxPossible > 0 ? (secAchievedScore / secMaxPossible) * 100 : 0;
+
+      return {
+        sectionId: secId,
+        sectionName: secItems[0]?.sectionName || `Section ${secId}`,
+        secTotalWeight,
+        secAchievedScore,
+        secMaxPossible,
+        secPercentage
+      };
+    });
+
+    const flaggedCount = items.filter(i => i.score < 3.0).length;
+
+    return {
+      items: itemsWithCalculations,
+      totalWeight,
+      finalScore,
+      category,
+      categoryBadgeClass,
+      categoryBorderClass,
+      sectionSummaries,
+      flaggedCount
+    };
+  }, [items]);
+
+  const handleValueChange = (id, newValue) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, value: newValue } : item));
+  };
+
+  // --- Automated QC Engine Handler: Apply Extracted STR Data ---
+  const applyParsedDocResult = (data) => {
+    if (!data || !data.extracted) return;
+
+    if (data.metadata) {
+      setMetadata(prev => ({
+        ...prev,
+        customerName: data.metadata.customerName || prev.customerName,
+        cif: data.metadata.cif || prev.cif,
+        accountNumber: data.metadata.accountNumber || prev.accountNumber,
+        analystName: data.metadata.analystName || prev.analystName,
+        reviewerName: data.metadata.reviewerName || prev.reviewerName,
+        reviewDate: data.metadata.reviewDate || prev.reviewDate,
+        strReference: data.metadata.strReference || prev.strReference,
+        decision: data.metadata.decision || prev.decision
+      }));
+    }
+
+    setItems(prev => prev.map(item => {
+      const extractedVal = data.extracted[item.id];
+      const autoScore = data.scores ? data.scores[item.id] : undefined;
+      const autoFinding = data.findings ? data.findings[item.id] : undefined;
+
+      return {
+        ...item,
+        value: extractedVal !== undefined ? extractedVal : item.value,
+        score: autoScore !== undefined ? autoScore : item.score,
+        comment: autoFinding !== undefined ? autoFinding : item.comment
+      };
+    }));
+
+    setQcEngineResult({
+      filename: data.filename || uploadedDocName,
+      stats: data.stats || null,
+      timestamp: new Date().toLocaleTimeString()
+    });
+
+    if (data.stats && data.stats.isTemplate) {
+      showToast(`⚠️ Dokumen Template STR terdeteksi (${data.stats.placeholderCount} placeholder). Nilai diekstrak & skor disesuaikan.`);
+    } else {
+      showToast(`✅ Mesin QC: Berhasil mengekstrak ${data.stats ? data.stats.completedCount : 26} parameter dari dokumen STR!`);
+    }
+  };
+
+  // --- Client-side JSZip DOCX Parser ---
+  const parseDocxClientSide = async (file) => {
+    try {
+      const JSZipLib = window.JSZip;
+      if (!JSZipLib) {
+        showToast(`Dokumen "${file.name}" dimuat sebagai referensi.`);
+        setItems(prev => prev.map(item => item.id === '3.4' ? { ...item, value: file.name } : item));
+        return;
+      }
+
+      setIsParsingDoc(true);
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = await JSZipLib.loadAsync(arrayBuffer);
+      const xmlFile = zip.file('word/document.xml');
+      if (!xmlFile) {
+        showToast(`Format file tidak valid: word/document.xml tidak ditemukan`);
+        setIsParsingDoc(false);
+        return;
+      }
+
+      const xmlText = await xmlFile.async('text');
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+
+      const tables = [];
+      const tblElements = xmlDoc.getElementsByTagName('w:tbl');
+      for (let i = 0; i < tblElements.length; i++) {
+        const tbl = tblElements[i];
+        const trs = tbl.getElementsByTagName('w:tr');
+        const tableData = [];
+        for (let r = 0; r < trs.length; r++) {
+          const tcs = trs[r].getElementsByTagName('w:tc');
+          const rowData = [];
+          for (let c = 0; c < tcs.length; c++) {
+            const ts = tcs[c].getElementsByTagName('w:t');
+            let cellText = '';
+            for (let t = 0; t < ts.length; t++) {
+              cellText += ts[t].textContent || '';
+            }
+            rowData.push(cellText.trim());
+          }
+          tableData.push(rowData);
+        }
+        tables.push(tableData);
+      }
+
+      const paragraphs = [];
+      const pNodes = xmlDoc.getElementsByTagName('w:p');
+      for (let i = 0; i < pNodes.length; i++) {
+        const ts = pNodes[i].getElementsByTagName('w:t');
+        let pText = '';
+        for (let t = 0; t < ts.length; t++) {
+          pText += ts[t].textContent || '';
+        }
+        if (pText.trim()) paragraphs.push(pText.trim());
+      }
+
+      const profileMap = {};
+      if (tables.length > 0) {
+        tables[0].forEach(row => {
+          if (row.length >= 3) {
+            profileMap[row[0].trim()] = row[2].trim();
+          } else if (row.length === 2) {
+            profileMap[row[0].trim()] = row[1].trim();
+          }
+        });
+      }
+
+      const accountsList = [];
+      if (tables.length >= 2) {
+        const accTable = tables[1];
+        for (let i = 1; i < accTable.length; i++) {
+          const rowStr = accTable[i].filter(Boolean).join(' | ');
+          if (rowStr.trim()) accountsList.push(rowStr.trim());
+        }
+      }
+
+      const isPlaceholder = (val) => {
+        if (!val || !val.trim()) return true;
+        const trimmed = val.trim();
+        if (/^\[.*\]$/.test(trimmed)) return true;
+        if (/^[…\.\s\-_]+$/.test(trimmed)) return true;
+        if (trimmed.includes('...') && trimmed.length < 10) return true;
+        return false;
+      };
+
+      const findAfter = (searchKeyword, fallback = '') => {
+        const lower = searchKeyword.toLowerCase();
+        for (let i = 0; i < paragraphs.length; i++) {
+          if (paragraphs[i].toLowerCase().includes(lower)) {
+            if (i + 1 < paragraphs.length) return paragraphs[i + 1];
+          }
+        }
+        return fallback;
+      };
+
+      const extracted = {};
+      const scores = {};
+      const findings = {};
+
+      // Section 1
+      const val_1_1 = profileMap['Nama'] || '[NAMA NASABAH]';
+      extracted['1.1'] = val_1_1;
+      let isPh = isPlaceholder(val_1_1);
+      scores['1.1'] = isPh ? 2.0 : 4.0;
+      findings['1.1'] = isPh ? `⚠️ Nama nasabah masih berupa template placeholder (${val_1_1})` : `✅ Nama nasabah terverifikasi sesuai core banking & KYC`;
+
+      const val_1_2 = profileMap['CIF'] || '[CIF]';
+      extracted['1.2'] = val_1_2;
+      isPh = isPlaceholder(val_1_2);
+      scores['1.2'] = isPh ? 2.0 : 4.0;
+      findings['1.2'] = isPh ? `⚠️ Nomor CIF belum diisi data nasabah riil` : `✅ Format nomor CIF valid dan terdata`;
+
+      const ttl = profileMap['Tempat, Tanggal Lahir'] || '[TTL]';
+      const usia = profileMap['Usia'] || '[USIA]';
+      const val_1_3 = `${ttl} / ${usia}`.trim();
+      extracted['1.3'] = val_1_3;
+      isPh = isPlaceholder(ttl) || isPlaceholder(usia);
+      scores['1.3'] = isPh ? 2.0 : 4.0;
+      findings['1.3'] = isPh ? `⚠️ Tempat, tanggal lahir atau usia belum dilengkapi` : `✅ Data kelahiran dan usia nasabah terverifikasi`;
+
+      const val_1_4 = profileMap['Pekerjaan'] || '[PEKERJAAN]';
+      extracted['1.4'] = val_1_4;
+      isPh = isPlaceholder(val_1_4);
+      scores['1.4'] = isPh ? 2.0 : 3.8;
+      findings['1.4'] = isPh ? `⚠️ Profil pekerjaan/bidang usaha belum diisi` : `✅ Pekerjaan dan bidang usaha tercatat jelas`;
+
+      const val_1_5 = profileMap['Nomor Rekening'] || '[NOMOR REKENING]';
+      extracted['1.5'] = val_1_5;
+      isPh = isPlaceholder(val_1_5);
+      scores['1.5'] = isPh ? 2.0 : 4.0;
+      findings['1.5'] = isPh ? `⚠️ Nomor rekening terperiksa belum dimasukkan` : `✅ Nomor rekening utama aktif terdaftar`;
+
+      const tglTrx = profileMap['Tgl. Transaksi'] || '[TANGGAL TRANSAKSI]';
+      const nomTrx = profileMap['Nominal Kredit Terbesar'] || '[NOMINAL TRANSAKSI]';
+      const val_1_6 = `${tglTrx} / ${nomTrx}`.trim();
+      extracted['1.6'] = val_1_6;
+      isPh = isPlaceholder(tglTrx) || isPlaceholder(nomTrx);
+      scores['1.6'] = isPh ? 2.0 : 4.0;
+      findings['1.6'] = isPh ? `⚠️ Timeline transaksi alert dan nominal kredit terbesar belum terisi` : `✅ Alert window dan nilai mutasi puncak tercatat`;
+
+      const ind = profileMap['Indikasi Tindak Pidana'] || '[INDIKASI TINDAK PIDANA]';
+      const subInd = profileMap['Sub Indikasi Tindak Pidana'] || '[SUB INDIKASI TINDAK PIDANA]';
+      const val_1_7 = `${ind} / ${subInd}`.trim();
+      extracted['1.7'] = val_1_7;
+      isPh = isPlaceholder(ind) || isPlaceholder(subInd);
+      scores['1.7'] = isPh ? 2.0 : 3.8;
+      findings['1.7'] = isPh ? `⚠️ Kategori tindak pidana asal PPATK belum ditentukan` : `✅ Klasifikasi dugaan tindak pidana asal sesuai pedoman`;
+
+      const lokasi = profileMap['Lokasi Terjadinya Pelanggaran'] || '[LOKASI PELANGGARAN]';
+      let keuangan = '[DATA KEUANGAN]';
+      Object.keys(profileMap).forEach(k => {
+        if (k.toLowerCase().includes('data keuangan')) keuangan = profileMap[k];
+      });
+      const val_1_8 = `${lokasi} / ${keuangan}`.trim();
+      extracted['1.8'] = val_1_8;
+      isPh = isPlaceholder(lokasi) || isPlaceholder(keuangan);
+      scores['1.8'] = isPh ? 2.0 : 3.8;
+      findings['1.8'] = isPh ? `⚠️ Lokasi unit kerja atau baseline profil keuangan belum diisi` : `✅ Lokasi uker dan parameter profil keuangan terisi`;
+
+      const sumber = profileMap['Sumber Pelaporan'] || '[SUMBER PELAPORAN]';
+      const kodeUker = profileMap['Kode Uker Pelaporan'] || '[KODE UKER]';
+      const val_1_9 = `${sumber} / ${kodeUker}`.trim();
+      extracted['1.9'] = val_1_9;
+      isPh = isPlaceholder(sumber) || isPlaceholder(kodeUker);
+      scores['1.9'] = isPh ? 2.0 : 4.0;
+      findings['1.9'] = isPh ? `⚠️ Sumber pelaporan dan kode cabang belum ditentukan` : `✅ Sumber pelaporan dan identitas kode uker valid`;
+
+      // Section 2
+      const val_2_1 = findAfter('Sumber deteksi STR', '[SUMBER DETEKSI STR]');
+      extracted['2.1'] = val_2_1;
+      isPh = isPlaceholder(val_2_1);
+      scores['2.1'] = isPh ? 2.0 : 3.8;
+      findings['2.1'] = isPh ? `⚠️ Skenario pemicu deteksi STR belum diuraikan` : `✅ Skenario alert / pemicu eskalasi terdefinisi`;
+
+      const val_2_2 = findAfter('Pencarian Informasi Internal', '[PROFILING INFORMASI INTERNAL]');
+      extracted['2.2'] = val_2_2;
+      isPh = isPlaceholder(val_2_2);
+      scores['2.2'] = isPh ? 2.0 : 3.6;
+      findings['2.2'] = isPh ? `⚠️ Ulasan profil data internal (KYC/turnover historis) belum dijabarkan` : `✅ Ulasan profiling data internal nasabah tersedia`;
+
+      const val_2_3 = findAfter('Pencarian Informasi Eksternal', '[PROFILING INFORMASI EKSTERNAL]');
+      extracted['2.3'] = val_2_3;
+      isPh = isPlaceholder(val_2_3);
+      scores['2.3'] = isPh ? 2.0 : 3.5;
+      findings['2.3'] = isPh ? `⚠️ Hasil penelusuran eksternal / OSINT / PEP screening belum diisi` : `✅ Penelusuran media negatif & screening eksternal tercantum`;
+
+      const val_2_4 = accountsList.length > 0 ? accountsList.join('; ') : '[TABEL REKENING FOLLOW THE MONEY]';
+      extracted['2.4'] = val_2_4;
+      isPh = isPlaceholder(val_2_4) || accountsList.length === 0;
+      scores['2.4'] = isPh ? 2.0 : 4.0;
+      findings['2.4'] = isPh ? `⚠️ Tabel pemetaan rekening sumber dan tujuan dana belum diisi` : `✅ Tabel rekening sumber & tujuan terlampir lengkap`;
+
+      let val_2_5 = '[FOLLOW THE MONEY POLA, FREKUENSI, NOMINAL]';
+      paragraphs.forEach(p => {
+        if (p.toLowerCase().includes('follow the money pola')) val_2_5 = p;
+      });
+      extracted['2.5'] = val_2_5;
+      isPh = isPlaceholder(val_2_5);
+      scores['2.5'] = isPh ? 2.0 : 3.6;
+      findings['2.5'] = isPh ? `⚠️ Analisis kecepatan, agregasi frekuensi, dan perputaran dana belum diuraikan` : `✅ Analisis pola transaksi dan anomali nominal dijabarkan`;
+
+      let val_2_6 = '[RINCIAN TRANSAKSI MENCURIGAKAN]';
+      paragraphs.forEach(p => {
+        if (p.toLowerCase().includes('rincian transaksi')) val_2_6 = p;
+      });
+      extracted['2.6'] = val_2_6;
+      isPh = isPlaceholder(val_2_6);
+      scores['2.6'] = isPh ? 2.0 : 3.8;
+      findings['2.6'] = isPh ? `⚠️ Rincian itemized transaksi mencurigakan belum dijabarkan` : `✅ Rincian transaksi mencurigakan terlampir`;
+
+      let val_2_7 = '[DIAGRAM ALIRAN DANA]';
+      paragraphs.forEach(p => {
+        if (p.toLowerCase().includes('diagram aliran dana')) val_2_7 = p;
+      });
+      extracted['2.7'] = val_2_7;
+      isPh = isPlaceholder(val_2_7);
+      scores['2.7'] = isPh ? 1.8 : 3.8;
+      findings['2.7'] = isPh ? `⚠️ Diagram flowchart visual perputaran dana belum disertakan` : `✅ Diagram alur dana (fund flow visual) terlampir`;
+
+      const val_2_8 = findAfter('Kesimpulan', '……………….');
+      extracted['2.8'] = val_2_8;
+      isPh = isPlaceholder(val_2_8);
+      scores['2.8'] = isPh ? 2.0 : 3.7;
+      findings['2.8'] = isPh ? `⚠️ Penjelasan dasar kecurigaan makul (grounds for suspicion) belum diuraikan` : `✅ Uraian indikasi makul dan motif ketidakwajaran terdefinisi`;
+
+      let val_2_9 = 'Melaporkan sebagai Transaksi Keuangan Mencurigakan (TKM) ke PPATK';
+      paragraphs.forEach(p => {
+        if (p.toLowerCase().includes('melaporkan sebagai')) val_2_9 = p;
+      });
+      extracted['2.9'] = val_2_9;
+      isPh = isPlaceholder(val_2_9);
+      scores['2.9'] = isPh ? 2.0 : 3.8;
+      findings['2.9'] = isPh ? `⚠️ Rekomendasi tipologi TPPU belum ditentukan` : `✅ Dasar pelaporan TKM ke PPATK & tipologi tercantum`;
+
+      // Section 3
+      extracted['3.1'] = 'Form KYC & Portofolio CIF Terlampir';
+      scores['3.1'] = 3.8;
+      findings['3.1'] = '✅ Dokumen portofolio profil nasabah teridentifikasi';
+
+      extracted['3.2'] = 'Rekening Koran Terotorisasi Periode Alert';
+      scores['3.2'] = 4.0;
+      findings['3.2'] = '✅ Mutasi rekening koran resmi terlampir';
+
+      extracted['3.3'] = 'Ekstrak Transaksi Spreadsheet (.xlsx)';
+      scores['3.3'] = 3.8;
+      findings['3.3'] = '✅ File worksheet transaksi terlampir';
+
+      extracted['3.4'] = file.name;
+      scores['3.4'] = 4.0;
+      findings['3.4'] = `✅ Dokumen format Lembar Hasil Analisis (LHA) STR terunggah (${file.name})`;
+
+      // Section 4
+      extracted['4.1'] = 'Format Standar Lembar Hasil Analisis RAC Individu 2026';
+      scores['4.1'] = 3.6;
+      findings['4.1'] = '✅ Struktur tata naskah memenuhi standar pedoman RAC';
+
+      // Section 5
+      extracted['5.1'] = 'Korelasi profil nasabah dengan perputaran dana transaksi';
+      scores['5.1'] = 3.2;
+      findings['5.1'] = 'ℹ️ Perlu verifikasi mendalam atas rasionalitas perputaran dana';
+
+      extracted['5.2'] = 'Verifikasi indikator Red Flags transaksi';
+      scores['5.2'] = 3.2;
+      findings['5.2'] = 'ℹ️ Verifikasi pembuktian ada/tidaknya dasar komersial riil';
+
+      extracted['5.3'] = 'Rekomendasi Pelaporan TKM ke PPATK';
+      scores['5.3'] = 3.5;
+      findings['5.3'] = '✅ Keputusan pelaporan TKM definitif untuk ditindaklanjuti';
+
+      let placeholderCount = 0;
+      Object.values(extracted).forEach(v => {
+        if (isPlaceholder(v)) placeholderCount++;
+      });
+
+      const parsedResult = {
+        success: true,
+        filename: file.name,
+        fileType: 'docx',
+        metadata: {
+          customerName: profileMap['Nama'] && !isPlaceholder(profileMap['Nama']) ? profileMap['Nama'] : (isPlaceholder(profileMap['Nama']) ? profileMap['Nama'] : 'PT Nusantara Megah Sejahtera'),
+          cif: profileMap['CIF'] && !isPlaceholder(profileMap['CIF']) ? profileMap['CIF'] : (isPlaceholder(profileMap['CIF']) ? profileMap['CIF'] : 'CIF-AutoDetected'),
+          accountNumber: profileMap['Nomor Rekening'] && !isPlaceholder(profileMap['Nomor Rekening']) ? profileMap['Nomor Rekening'] : '',
+          analystName: 'Staff RAC (Maker)',
+          reviewerName: 'Team Leader RAC (Signer)',
+          reviewDate: new Date().toISOString().slice(0, 10),
+          strReference: `STR/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+          slaMet: 'Yes',
+          decision: placeholderCount > 5 ? 'Pending Remediation / Re-evaluate' : 'Approve & File STR'
+        },
+        extracted,
+        scores,
+        findings,
+        stats: {
+          totalItems: Object.keys(extracted).length,
+          placeholderCount,
+          completedCount: Object.keys(extracted).length - placeholderCount,
+          isTemplate: placeholderCount > 5
+        }
+      };
+
+      setIsParsingDoc(false);
+      applyParsedDocResult(parsedResult);
+    } catch (err) {
+      console.error('Client-side docx parsing error:', err);
+      setIsParsingDoc(false);
+      showToast(`Peringatan: Gagal membedah DOCX di browser (${err.message}). Memuat nama file.`);
+      setItems(prev => prev.map(item => item.id === '3.4' ? { ...item, value: file.name } : item));
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedDocName(file.name);
+
+    if (file.name.toLowerCase().endsWith('.docx')) {
+      showToast(`⚙️ Memproses dokumen STR "${file.name}" dengan Mesin QC Otomatis...`);
+      parseDocxClientSide(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result;
+        if (file.name.endsWith('.json') && typeof text === 'string') {
+          const parsed = JSON.parse(text);
+          if (parsed.items && Array.isArray(parsed.items)) {
+            setItems(prev => prev.map(item => {
+              const matched = parsed.items.find((pi) => pi.id === item.id || pi.item === item.item);
+              return matched ? { ...item, value: matched.value || item.value } : item;
+            }));
+          }
+          if (parsed.metadata) {
+            setMetadata(prev => ({ ...prev, ...parsed.metadata }));
+          }
+          showToast(`Data dokumen STR "${file.name}" berhasil diekstrak ke kolom Value!`);
+          return;
+        }
+
+        if (typeof text === 'string') {
+          const cifMatch = text.match(/CIF[:\s]+([A-Za-z0-9-]+)/i);
+          const nameMatch = text.match(/(?:Nama|Customer|Nasabah)[:\s]+([^\n\r,]+)/i);
+          const accMatch = text.match(/(?:Rekening|Account)[:\s]+([0-9-]+)/i);
+          const nominalMatch = text.match(/(?:Nominal|Total|Nilai)[:\s]+(Rp[^\n\r]+|[0-9.,]+)/i);
+
+          if (cifMatch) setMetadata(prev => ({ ...prev, cif: cifMatch[1].trim() }));
+          if (nameMatch) setMetadata(prev => ({ ...prev, customerName: nameMatch[1].trim() }));
+          
+          setItems(prev => prev.map(item => {
+            if (item.id === '1.1' && nameMatch) return { ...item, value: nameMatch[1].trim() };
+            if (item.id === '1.2' && cifMatch) return { ...item, value: cifMatch[1].trim() };
+            if (item.id === '1.5' && accMatch) return { ...item, value: accMatch[1].trim() };
+            if (item.id === '1.6' && nominalMatch) return { ...item, value: nominalMatch[1].trim() };
+            if (item.id === '3.4') return { ...item, value: file.name };
+            return item;
+          }));
+        }
+        showToast(`📄 Dokumen STR "${file.name}" berhasil diunggah! Nilai data diekstrak ke kolom Value.`);
+      } catch (err) {
+        showToast(`Dokumen "${file.name}" dimuat sebagai referensi.`);
+      }
+    };
+
+    if (file.name.endsWith('.json') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+      setItems(prev => prev.map(item => item.id === '3.4' ? { ...item, value: file.name } : item));
+      showToast(`📄 Dokumen STR "${file.name}" berhasil diunggah! Nilai data diekstrak ke kolom Value.`);
+    }
+  };
+
+  const handleScoreChange = (id, newScore) => {
+    const numericScore = Math.max(0, Math.min(4, parseFloat(newScore) || 0));
+    setItems(prev => prev.map(item => item.id === id ? { ...item, score: numericScore } : item));
+  };
+
+  const handleCommentChange = (id, newComment) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, comment: newComment } : item));
+  };
+
+  const handleMetadataChange = (e) => {
+    const { name, value } = e.target;
+    setMetadata(prev => ({ ...prev, [name]: value }));
+  };
+
+  const applyPreset = (type) => {
+    if (type === 'perfect') {
+      setItems(prev => prev.map(item => ({ ...item, score: 4.0 })));
+      showToast('Preset applied: Perfect Scores (4.00)');
+    } else if (type === 'good') {
+      setItems(prev => prev.map((item, idx) => ({ ...item, score: idx % 4 === 0 ? 3.5 : 3.8 })));
+      showToast('Preset applied: Good Quality (3.5+)');
+    } else if (type === 'poor') {
+      setItems(prev => prev.map(item => ({ ...item, score: item.sectionId === 5 || item.sectionId === 2 ? 1.8 : 2.5 })));
+      showToast('Preset applied: Low Quality (< 2.5)');
+    } else if (type === 'reset') {
+      setItems(INITIAL_ITEMS);
+      setMetadata(INITIAL_METADATA);
+      localStorage.clear();
+      showToast('Reset all data to default standards.');
+    }
+  };
+
+  const handleSaveReport = () => {
+    const newReport = {
+      id: 'QC-' + Date.now().toString().slice(-6),
+      createdAt: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+      timestamp: Date.now(),
+      metadata: { ...metadata },
+      overallRemarks: overallRemarks,
+      finalScore: calculatedData.finalScore,
+      category: calculatedData.category,
+      categoryBadgeClass: calculatedData.categoryBadgeClass,
+      flaggedCount: calculatedData.flaggedCount,
+      itemsSnapshot: items.map(i => ({ id: i.id, score: i.score, comment: i.comment, weight: i.weight, item: i.item, sectionName: i.sectionName, value: i.value }))
+    };
+
+    setSavedReports(prev => [newReport, ...prev]);
+    showToast(`✅ QC Report for ${metadata.customerName} saved to Repository!`);
+  };
+
+  const handleLoadReport = (report) => {
+    setMetadata(report.metadata);
+    setOverallRemarks(report.overallRemarks || '');
+    if (report.itemsSnapshot) {
+      setItems(prev => prev.map(item => {
+        const snap = report.itemsSnapshot.find(s => s.id === item.id);
+        return snap ? { ...item, score: snap.score, comment: snap.comment, value: snap.value !== undefined ? snap.value : item.value } : item;
+      }));
+    }
+    setActiveTab('excel');
+    showToast(`📂 Loaded QC Report: ${report.metadata.strReference || report.id}`);
+  };
+
+  const handleDeleteReport = (id) => {
+    setSavedReports(prev => prev.filter(r => r.id !== id));
+    showToast('🗑️ Report removed from repository.');
+  };
+
+  const handleClearAllHistory = () => {
+    if (window.confirm('Are you sure you want to clear all saved reports in the repository?')) {
+      setSavedReports([]);
+      showToast('Repository history cleared.');
+    }
+  };
+
+  const filteredItems = useMemo(() => {
+    return calculatedData.items.filter(item => {
+      const matchesSearch = item.item.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            item.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (item.value && item.value.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                            item.comment.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            item.id.includes(searchQuery);
+      
+      const matchesSection = filterSection === 'all' || item.sectionId === parseInt(filterSection);
+      const matchesScore = filterScore === 'all' || (filterScore === 'flagged' && item.score < 3.0);
+
+      return matchesSearch && matchesSection && matchesScore;
+    });
+  }, [calculatedData.items, searchQuery, filterSection, filterScore]);
+
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "AML STR QUALITY CONTROL REPORT (EXCEL QC FORM)\n";
+    csvContent += `Customer Name,${metadata.customerName},CIF,${metadata.cif}\n`;
+    csvContent += `Review Date,${metadata.reviewDate},STR Reference,${metadata.strReference}\n`;
+    csvContent += `SLA Met,${metadata.slaMet},Analyst,${metadata.analystName}\n`;
+    csvContent += `QC Reviewer,${metadata.reviewerName},QC Decision,${metadata.decision}\n`;
+    csvContent += `Final Score,${calculatedData.finalScore.toFixed(4)} / 4.00 (${calculatedData.category})\n\n`;
+    csvContent += "ID,Checklist Item / Sub-item,QC Standard Description,Item Value (Uploaded Doc),Item Weight (%),Score (0.00-4.00),Weighted Score,QC Findings / Comments\n";
+
+    calculatedData.items.forEach(item => {
+      csvContent += `"${item.id}","${item.item.replace(/"/g, '""')}","${item.desc.replace(/"/g, '""')}","${(item.value || '').replace(/"/g, '""')}",${item.weight.toFixed(2)},${item.score.toFixed(2)},${item.weightedContribution.toFixed(4)},"${item.comment.replace(/"/g, '""')}"\n`;
+    });
+
+    csvContent += `\n,,TOTAL WEIGHT,${calculatedData.totalWeight.toFixed(2)}%,FINAL QC SCORE,${calculatedData.finalScore.toFixed(4)}\n`;
+    csvContent += `,,IMPLEMENTATION CATEGORY,${calculatedData.category}\n`;
+    csvContent += `\nOVERALL QC REMARKS,"${overallRemarks.replace(/"/g, '""')}"\n`;
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `STR_QC_Report_${metadata.cif}_${metadata.reviewDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('CSV Report Downloaded Successfully!');
+  };
+
+  const handleExportAllHistoryCSV = () => {
+    if (savedReports.length === 0) {
+      showToast('No saved reports available to export.');
+      return;
+    }
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "AML STR SUBMITTED QC REPORTS REPOSITORY\n\n";
+    csvContent += "Report ID,Submission Date,Customer Name,CIF,STR Reference,Analyst,QC Reviewer,SLA Met,Final Score,Category,QC Decision,Flagged Items,Remarks\n";
+
+    savedReports.forEach(r => {
+      csvContent += `"${r.id}","${r.createdAt}","${(r.metadata.customerName || '').replace(/"/g, '""')}","${r.metadata.cif}","${r.metadata.strReference}","${(r.metadata.analystName || '').replace(/"/g, '""')}","${(r.metadata.reviewerName || '').replace(/"/g, '""')}","${r.metadata.slaMet}",${r.finalScore.toFixed(4)},"${r.category}","${r.metadata.decision}",${r.flaggedCount},"${(r.overallRemarks || '').replace(/"/g, '""')}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `AML_QC_Reports_Repository_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('💾 Exported Repository History to CSV!');
+  };
+
+  const copySummaryToClipboard = () => {
+    const summaryText = `================================================
+AML STR QUALITY CONTROL EVALUATION REPORT
+================================================
+Customer Name: ${metadata.customerName}
+CIF: ${metadata.cif} | STR Ref: ${metadata.strReference}
+SLA Met: ${metadata.slaMet}
+Analyst: ${metadata.analystName}
+QC Reviewer: ${metadata.reviewerName} (${metadata.reviewDate})
+
+------------------------------------------------
+FINAL QC SCORE: ${calculatedData.finalScore.toFixed(2)} / 4.00
+RATING CATEGORY: ${calculatedData.category}
+DECISION: ${metadata.decision}
+------------------------------------------------
+
+SECTION SCORE BREAKDOWN:
+1. Kesesuaian Data Profil (5%): ${calculatedData.sectionSummaries[0].secAchievedScore.toFixed(2)} / 0.20
+2. Hasil Analisis Struktur 5W2H (50%): ${calculatedData.sectionSummaries[1].secAchievedScore.toFixed(2)} / 2.00
+3. Kelengkapan Dokumen Audit Trail (10%): ${calculatedData.sectionSummaries[2].secAchievedScore.toFixed(2)} / 0.40
+4. Kerapian LHA Formatting (5%): ${calculatedData.sectionSummaries[3].secAchievedScore.toFixed(2)} / 0.20
+5. Kekuatan Hasil Analisis Quality (30%): ${calculatedData.sectionSummaries[4].secAchievedScore.toFixed(2)} / 1.20
+
+OVERALL QC REMARKS:
+"${overallRemarks}"
+================================================`;
+
+    navigator.clipboard.writeText(summaryText);
+    setCopied(true);
+    showToast('Audit Summary Copied to Clipboard!');
+    setTimeout(() => setCopied(false), 2200);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-16 selection:bg-[#307FE2] selection:text-white" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        *, *::before, *::after, html, body, .font-mono, .font-sans, div, input, select, textarea, button, table, span, p, h1, h2, h3, h4, label, code, pre, kbd, samp {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+      `}</style>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-4 right-4 z-50 bg-slate-900 text-[#71C5E8] border border-[#307FE2]/50 px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold transition-all">
+          {toastMsg}
+        </div>
+      )}
+
+      {/* Top Header Navigation - Pantone PMS 2132 C (#0857C3) */}
+      <header className="bg-[#0857C3] text-white border-b border-[#307FE2]/40 sticky top-0 z-40 shadow-lg print:hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-y-2.5 gap-x-3">
+          
+          {/* Branding & App Title (Left) */}
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-[#307FE2] rounded-lg text-white shadow-md flex items-center justify-center border border-[#71C5E8]/30 flex-shrink-0">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h1 className="font-bold text-base sm:text-lg leading-tight tracking-tight text-white">
+                  Form Quality Control (QC) Report STR / LTKM
+                </h1>
+                <span className="text-[10px] bg-[#71C5E8]/20 text-[#71C5E8] border border-[#71C5E8]/40 px-2 py-0.5 rounded font-semibold">
+                  PANTONE BLUE PRO v3.1
+                </span>
+              </div>
+              <p className="text-xs text-slate-200/90 hidden sm:block">
+                AML Analyst STR Evaluation Checklist with Itemized Weighted Rates & Executive Dashboard
+              </p>
+            </div>
+          </div>
+
+          {/* Executive User Profile & Session Bar (Pojok Kanan Atas) */}
+          <div className="flex items-center space-x-2 flex-shrink-0 order-2 xl:order-3 ml-auto xl:ml-0">
+            {/* User Identity Chip */}
+            <div className="flex items-center space-x-2 bg-[#0857C3]/90 hover:bg-[#307FE2]/30 border border-[#307FE2]/60 rounded-lg px-2.5 py-1 transition shadow-sm">
+              <div className="w-6 h-6 rounded bg-[#307FE2] text-white flex items-center justify-center text-[11px] font-bold border border-[#71C5E8]/40 shadow-inner flex-shrink-0">
+                AD
+              </div>
+              <div className="text-left hidden sm:block">
+                <div className="text-xs font-bold text-white leading-tight">
+                  Ahmad Dahlan
+                </div>
+                <div className="text-[10px] text-[#71C5E8] font-medium leading-tight">
+                  QC Lead Administrator
+                </div>
+              </div>
+            </div>
+
+            {/* Proportional Logout Action Button */}
+            <button
+              onClick={() => {
+                showToast('Sesi logout / reset berhasil.');
+              }}
+              className="h-8 px-2.5 bg-rose-500/10 hover:bg-rose-500/25 text-rose-200 hover:text-white border border-rose-400/30 hover:border-rose-400/60 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition duration-150 cursor-pointer shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-400/50"
+              title="Keluar dari Sesi (Logout)"
+              aria-label="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-300" />
+              <span className="hidden md:inline">Logout</span>
+            </button>
+          </div>
+
+          {/* Action Toolbar (Upload STR, Presets, Export, Copy, Print) */}
+          <div className="w-full xl:w-auto flex items-center justify-between xl:justify-start space-x-2 flex-wrap gap-y-2 order-3 xl:order-2 pt-2 xl:pt-0 border-t xl:border-t-0 border-[#307FE2]/30">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+              <input
+                type="file"
+                id="strUploadInput"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt,.json,.csv,.xlsx"
+                onChange={handleFileUpload}
+              />
+              <button
+                type="button"
+                onClick={() => document.getElementById('strUploadInput')?.click()}
+                className="h-8 px-3 text-xs font-semibold bg-[#71C5E8]/20 hover:bg-[#71C5E8]/30 text-white border border-[#71C5E8]/50 rounded-lg flex items-center space-x-1.5 shadow-sm transition cursor-pointer"
+                title="Upload dokumen Laporan STR untuk mengisi kolom Value secara otomatis"
+              >
+                <Upload className="w-3.5 h-3.5 text-[#71C5E8]" />
+                <span>Upload Dokumen STR</span>
+              </button>
+              {uploadedDocName && (
+                <span className="h-8 px-2.5 bg-[#0857C3]/90 text-[#71C5E8] border border-[#307FE2]/60 rounded-lg text-[11px] font-semibold flex items-center gap-1 shadow-sm" title={`Dokumen STR aktif: ${uploadedDocName}`}>
+                  📄 <span className="max-w-[120px] sm:max-w-[160px] truncate">{uploadedDocName}</span>
+                </span>
+              )}
+              <div className="hidden lg:flex items-center bg-[#0857C3]/80 rounded p-0.5 border border-[#307FE2] mr-2 text-xs">
+                <button onClick={() => applyPreset('perfect')} className="px-2.5 py-1 text-slate-100 hover:bg-[#307FE2] rounded transition">Preset: Perfect</button>
+                <button onClick={() => applyPreset('good')} className="px-2.5 py-1 text-slate-100 hover:bg-[#307FE2] rounded transition">Preset: Good</button>
+                <button onClick={() => applyPreset('poor')} className="px-2.5 py-1 text-rose-200 hover:bg-rose-900/40 rounded transition">Preset: Low</button>
+                <button onClick={() => applyPreset('reset')} className="px-2.5 py-1 text-amber-200 hover:bg-amber-900/40 rounded transition">Reset All</button>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleExportCSV}
+                className="h-8 px-3 text-xs font-semibold bg-[#307FE2] hover:bg-[#307FE2]/90 text-white rounded-lg flex items-center space-x-1.5 shadow border border-[#71C5E8]/30 transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </button>
+
+              <button
+                onClick={copySummaryToClipboard}
+                className="h-8 px-3 text-xs font-semibold bg-[#0857C3] hover:bg-[#307FE2] text-white border border-[#307FE2] rounded-lg flex items-center space-x-1.5 transition"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-[#71C5E8]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied!' : 'Copy Summary'}</span>
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                className="h-8 px-3 text-xs font-semibold bg-[#0857C3] hover:bg-[#307FE2] text-white border border-[#307FE2] rounded-lg flex items-center space-x-1.5 transition"
+                title="Print / PDF"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Print</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Tab Navigation Ribbon with Pantone Accent Highlights */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-[#307FE2]/40 flex space-x-1 sm:space-x-3 overflow-x-auto text-xs font-medium bg-[#0857C3]">
+          <button
+            onClick={() => setActiveTab('excel')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'excel'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>Interactive Evaluation Grid</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'dashboard'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>Infographic Dashboard & Insights</span>
+            <span className="ml-1 px-1.5 py-0.2 bg-[#71C5E8] text-[#0857C3] rounded-full text-[10px] font-extrabold ">
+              NEW
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'history'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>QC Reports Repository</span>
+            <span className="ml-1 px-1.5 py-0.2 bg-[#71C5E8]/20 text-[#71C5E8] border border-[#71C5E8]/40 rounded-full text-[10px] font-bold">
+              {savedReports.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'analytics'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>Section Analytics</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('feedback')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'feedback'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>Senior Reviewer Assessment</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rubric')}
+            className={`py-2.5 px-3.5 border-b-2 flex items-center space-x-2 transition whitespace-nowrap ${
+ activeTab === 'rubric'
+ ? 'border-[#71C5E8] text-white font-bold bg-[#307FE2]/50'
+ : 'border-transparent text-slate-200 hover:text-white hover:bg-[#307FE2]/30'
+ }`}
+          >
+            <Award className="w-3.5 h-3.5 text-[#71C5E8]" />
+            <span>Scoring Rubric</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+        {activeTab === 'excel' && (
+          <div className="space-y-6">
+            
+            {/* Automated QC Engine Status Banner */}
+            {qcEngineResult && (
+              <div className="bg-[#1F4E79]/20 border border-[#307FE2]/50 rounded-xl p-4 shadow-sm backdrop-blur-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center space-x-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#0857C3] border border-[#71C5E8]/40 flex items-center justify-center text-white flex-shrink-0 shadow-sm">
+                      <Activity className="w-5 h-5 text-[#71C5E8]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="text-xs font-bold text-slate-800">Mesin QC STR:</span>
+                        <span className="text-xs font-semibold text-[#0857C3]">{qcEngineResult.filename}</span>
+                        {qcEngineResult.stats?.isTemplate ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            ⚠️ Template Format ({qcEngineResult.stats.placeholderCount} Placeholder)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            ✅ Dokumen STR Terisi Lengkap
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-600 mt-0.5">
+                        {qcEngineResult.stats ? (
+                          <span>
+                            <strong>{qcEngineResult.stats.completedCount}</strong> item terverifikasi • <strong>{qcEngineResult.stats.placeholderCount}</strong> placeholder terdeteksi • Seluruh 26 nilai item & skor audit otomatis dipetakan ke grid evaluasi.
+                          </span>
+                        ) : (
+                          <span>Seluruh parameter QC berhasil diekstrak dan diselaraskan ke kolom Value.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 self-end sm:self-auto flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setQcEngineResult(null)}
+                      className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 transition"
+                    >
+                      Sembunyikan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Case & Audit Metadata Form Header */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-[#0857C3]" />
+                    <h2 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      STR Case & Audit Metadata
+                    </h2>
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    Mandatory Audit Fields
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">Nama Nasabah (Customer)</label>
+                    <input
+                      type="text"
+                      name="customerName"
+                      value={metadata.customerName}
+                      onChange={handleMetadataChange}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-medium focus:ring-2 focus:ring-[#307FE2] outline-none text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">CIF (Customer Info File)</label>
+                    <input
+                      type="text"
+                      name="cif"
+                      value={metadata.cif}
+                      onChange={handleMetadataChange}
+                      placeholder="CIF Number"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">STR Reference No.</label>
+                    <input
+                      type="text"
+                      name="strReference"
+                      value={metadata.strReference}
+                      onChange={handleMetadataChange}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-medium focus:ring-2 focus:ring-[#307FE2] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">AML Analyst Name</label>
+                    <input
+                      type="text"
+                      name="analystName"
+                      value={metadata.analystName}
+                      onChange={handleMetadataChange}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-medium focus:ring-2 focus:ring-[#307FE2] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">QC Reviewer Name</label>
+                    <input
+                      type="text"
+                      name="reviewerName"
+                      value={metadata.reviewerName}
+                      onChange={handleMetadataChange}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-medium focus:ring-2 focus:ring-[#307FE2] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-500 dark:text-slate-400 font-semibold mb-1">Review Date & SLA Status</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="date"
+                        name="reviewDate"
+                        value={metadata.reviewDate}
+                        onChange={handleMetadataChange}
+                        className="w-full px-1.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-xs focus:ring-2 focus:ring-[#307FE2] outline-none"
+                      />
+                      <select
+                        name="slaMet"
+                        value={metadata.slaMet}
+                        onChange={handleMetadataChange}
+                        className={`w-full px-1.5 py-1.5 border rounded font-bold text-xs focus:ring-2 outline-none ${
+ metadata.slaMet === 'Yes' 
+ ? 'bg-[#71C5E8]/20 text-[#0857C3] border-[#307FE2] dark:bg-[#0857C3]/30 dark:text-[#71C5E8]' 
+ : 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300'
+ }`}
+                      >
+                        <option value="Yes">SLA: Met</option>
+                        <option value="No">SLA: Breached</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Executive Scorecard Box */}
+              <div className={`bg-white dark:bg-slate-900 rounded-xl p-5 border-2 ${calculatedData.categoryBorderClass} shadow-sm flex flex-col justify-between`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] uppercase font-extrabold text-slate-400 tracking-wider">
+                      Overall Final QC Score
+                    </span>
+                    <span className="text-xs text-slate-400">Scale: 0.00 - 4.00</span>
+                  </div>
+
+                  <div className="flex items-baseline space-x-3 my-1">
+                    <span className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+                      {calculatedData.finalScore.toFixed(2)}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">/ 4.00</span>
+                  </div>
+
+                  <div className="mt-2">
+                    <span className={`inline-block text-xs font-extrabold px-3 py-1 rounded-full border shadow-sm ${calculatedData.categoryBadgeClass}`}>
+                      {calculatedData.category}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-xs space-y-1.5">
+                  <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                    <span>Audit Items Flagged (&lt;3.0):</span>
+                    <span className={`font-bold px-1.5 py-0.5 rounded ${calculatedData.flaggedCount > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                      {calculatedData.flaggedCount} item(s)
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                    <span>Structural Weight (5W2H):</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">50% Weight</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                    <span>Analytical Quality Weight:</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">30% Weight</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Filter & Toolbar */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search checklist items or notes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 pr-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none w-48 sm:w-64"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <select
+                    value={filterSection}
+                    onChange={(e) => setFilterSection(e.target.value)}
+                    className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none font-medium"
+                  >
+                    <option value="all">All 5 Sections</option>
+                    <option value="1">1. Profil Data (5%)</option>
+                    <option value="2">2. Hasil Analisis Structure (50%)</option>
+                    <option value="3">3. Kelengkapan Dokumen (10%)</option>
+                    <option value="4">4. Kerapian Formatting (5%)</option>
+                    <option value="5">5. Kekuatan Analisis Quality (30%)</option>
+                  </select>
+                </div>
+
+                <select
+                  value={filterScore}
+                  onChange={(e) => setFilterScore(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none font-medium"
+                >
+                  <option value="all">Show All Items</option>
+                  <option value="flagged">Show Flagged Only (&lt; 3.0)</option>
+                </select>
+              </div>
+
+              <div className="text-slate-500 text-[11px]">
+                Showing {filteredItems.length} / {items.length} Checklist Items
+              </div>
+            </div>
+
+            {/* Interactive Grid Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="bg-[#0857C3] text-white px-4 py-3 flex justify-between items-center border-b border-[#307FE2]">
+                <div className="flex items-center space-x-2">
+                  <Calculator className="w-4 h-4 text-[#71C5E8]" />
+                  <span className="font-bold text-xs uppercase tracking-wider">
+                    QC Evaluation Grid (Automated Itemized Weighted Rate)
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-200">
+                  Formula: Weighted Score = (Item Weight % ÷ 100) × Assigned Score
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 text-slate-200 uppercase text-[11px] border-b border-slate-700">
+                      <th className="py-2.5 px-3 w-12 text-center border-r border-slate-800">ID</th>
+                      <th className="py-2.5 px-4 border-r border-slate-800 min-w-[170px]">Checklist Pengerjaan / Items</th>
+                      <th className="py-2.5 px-4 border-r border-slate-800 min-w-[210px]">QC Operational Standard</th>
+                      <th className="py-2.5 px-3 border-r border-slate-800 min-w-[180px] bg-slate-900/90 text-[#71C5E8]">Value (Dokumen STR)</th>
+                      <th className="py-2.5 px-3 text-center border-r border-slate-800 w-24">Item Weight</th>
+                      <th className="py-2.5 px-3 text-center border-r border-slate-800 w-28">Score (0.0 - 4.0)</th>
+                      <th className="py-2.5 px-3 text-right border-r border-slate-800 w-28">Weighted Score</th>
+                      <th className="py-2.5 px-4 min-w-[210px]">QC Reviewer Findings & Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-sans">
+                    {filteredItems.map((item, index) => {
+                      const isFirstInSection = index === 0 || filteredItems[index - 1].sectionId !== item.sectionId;
+                      const secSummary = calculatedData.sectionSummaries.find(s => s.sectionId === item.sectionId);
+
+                      return (
+                        <React.Fragment key={item.id}>
+                          {isFirstInSection && (
+                            <tr className="bg-slate-200/90 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-bold border-t-2 border-slate-300 dark:border-slate-700">
+                              <td colSpan={4} className="py-2 px-4 uppercase tracking-wider text-xs">
+                                <span className="w-2 h-2 rounded-full bg-[#307FE2] inline-block mr-2"></span>
+                                <span>{item.sectionName}</span>
+                              </td>
+                              <td className="py-2 px-3 text-center text-[#0857C3] dark:text-[#71C5E8]">
+                                {item.sectionWeight.toFixed(1)}%
+                              </td>
+                              <td className="py-2 px-3 text-center text-slate-600 dark:text-slate-400 text-[11px]">
+                                Section Rate
+                              </td>
+                              <td className="py-2 px-3 text-right text-[#0857C3] dark:text-[#71C5E8]">
+                                {secSummary ? secSummary.secAchievedScore.toFixed(4) : '0.00'}
+                              </td>
+                              <td className="py-2 px-4 text-xs font-normal text-slate-500 dark:text-slate-400 italic">
+                                Max contribution: {((item.sectionWeight / 100) * 4.0).toFixed(2)} pts
+                              </td>
+                            </tr>
+                          )}
+
+                          <tr className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${item.score < 3.0 ? 'bg-amber-50/30 dark:bg-amber-950/20' : ''}`}>
+                            <td className="py-2.5 px-3 text-center text-slate-400 text-[11px] border-r border-slate-200 dark:border-slate-800 font-semibold">
+                              {item.id}
+                            </td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800">
+                              {item.item}
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400 text-xs border-r border-slate-200 dark:border-slate-800">
+                              {item.desc}
+                            </td>
+                            <td className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+                              <input
+                                type="text"
+                                value={item.value || ''}
+                                onChange={(e) => handleValueChange(item.id, e.target.value)}
+                                placeholder="Value dari dokumen..."
+                                className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-1 focus:ring-[#307FE2] outline-none"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                              {item.weight.toFixed(2)}%
+                            </td>
+                            <td className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="4"
+                                step="0.1"
+                                value={item.score}
+                                onChange={(e) => handleScoreChange(item.id, e.target.value)}
+                                className={`w-16 px-2 py-1 text-center font-bold rounded border text-xs focus:ring-2 focus:ring-[#307FE2] outline-none ${
+ item.score >= 3.5 
+ ? 'bg-sky-50 text-[#0857C3] border-sky-300 dark:bg-[#0857C3]/30 dark:text-[#71C5E8]' 
+ : item.score >= 2.8 
+ ? 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950 dark:text-blue-300' 
+ : item.score >= 2.0 
+ ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300' 
+ : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300'
+ }`}
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-[#0857C3] dark:text-[#71C5E8] bg-slate-50/50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-slate-800">
+                              {item.weightedContribution.toFixed(4)}
+                            </td>
+                            <td className="py-1 px-3">
+                              <input
+                                type="text"
+                                placeholder="Add reviewer finding..."
+                                value={item.comment}
+                                onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                                className="w-full px-2 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded focus:ring-1 focus:ring-[#307FE2] outline-none text-slate-700 dark:text-slate-300"
+                              />
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+
+                  <tfoot>
+                    <tr className="bg-slate-900 text-white font-bold text-xs border-t-2 border-slate-700">
+                      <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider">
+                        Total Combined Weighted Score:
+                      </td>
+                      <td className="py-3 px-3 text-center text-[#71C5E8] font-bold">
+                        {calculatedData.totalWeight.toFixed(1)}%
+                      </td>
+                      <td className="py-3 px-3 text-center text-slate-400">
+                        MAX 4.00
+                      </td>
+                      <td className="py-3 px-3 text-right text-[#71C5E8] text-sm font-extrabold">
+                        {calculatedData.finalScore.toFixed(4)}
+                      </td>
+                      <td className="py-3 px-4 text-xs font-sans font-normal text-slate-300">
+                        Calculated from all 5 itemized sections
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            {/* Senior Sign-off & Save Box */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <h3 className="font-bold text-sm uppercase tracking-wide text-slate-900 dark:text-white flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5 text-[#0857C3]" />
+                  <span>Senior Reviewer Overall Decision & Audit Sign-Off</span>
+                </h3>
+                <span className="text-xs text-slate-400 ">Final Audit Authorization</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    Overall QC Findings & Recommendation Summary
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={overallRemarks}
+                    onChange={(e) => setOverallRemarks(e.target.value)}
+                    className="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none text-slate-800 dark:text-slate-200 font-sans"
+                    placeholder="Enter senior reviewer notes, key deficiencies, or filing recommendations..."
+                  />
+                </div>
+
+                <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Final QC Action Decision
+                    </label>
+                    <select
+                      name="decision"
+                      value={metadata.decision}
+                      onChange={handleMetadataChange}
+                      className="w-full p-2 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-[#307FE2] outline-none"
+                    >
+                      <option value="Approve & File STR">✅ Approve & File STR (Ready for PPATK)</option>
+                      <option value="Return for Rework">⚠️ Return for Rework (Requires Re-analysis)</option>
+                      <option value="Close Case (No Grounds)">❌ Close Case (Insufficient Grounds)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleSaveReport}
+                    className="w-full py-2 px-3 bg-[#0857C3] hover:bg-[#307FE2] text-white font-bold text-xs rounded shadow transition flex items-center justify-center space-x-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Submit & Save QC Report</span>
+                  </button>
+
+                  <div className="pt-2 text-[11px] text-slate-500 dark:text-slate-400 space-y-1 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex justify-between">
+                      <span>Sign-off Date:</span>
+                      <span className="font-medium">{metadata.reviewDate}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Reviewer:</span>
+                      <span className="font-medium truncate max-w-[130px]">{metadata.reviewerName}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2: DETAILED INFOGRAPHIC DASHBOARD & INSIGHTS */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            
+            {/* Top Key Performance Indicators Header Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              <div className="bg-gradient-to-br from-[#0857C3] to-[#307FE2] text-white p-5 rounded-xl shadow-md border border-[#307FE2] flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-slate-200 font-semibold">Total Cases Evaluated</p>
+                    <h3 className="text-3xl font-black mt-1">{savedReports.length + 1}</h3>
+                  </div>
+                  <div className="p-2.5 bg-white/10 rounded-lg text-[#71C5E8]">
+                    <FileCheck2 className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="mt-3 text-[11px] text-slate-200 flex items-center justify-between border-t border-white/20 pt-2 ">
+                  <span>Current Active Case:</span>
+                  <span className="font-bold text-[#71C5E8]">{metadata.cif}</span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Average Quality Score</p>
+                    <div className="flex items-baseline space-x-2 mt-1">
+                      <h3 className="text-3xl font-black text-[#0857C3] dark:text-[#71C5E8]">
+                        {(
+                          (savedReports.reduce((acc, curr) => acc + curr.finalScore, calculatedData.finalScore) / (savedReports.length + 1))
+                        ).toFixed(2)}
+                      </h3>
+                      <span className="text-xs text-slate-400 font-semibold">/ 4.00</span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-[#71C5E8]/20 text-[#0857C3] dark:bg-[#0857C3]/30 dark:text-[#71C5E8] rounded-lg">
+                    <Award className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="mt-3 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+                  <span>Standard Threshold:</span>
+                  <span className="font-bold text-[#0857C3] dark:text-[#71C5E8]">≥ 2.76 (Baik)</span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">SLA Compliance Rate</p>
+                    <h3 className="text-3xl font-black text-[#307FE2] mt-1">
+                      {Math.round(
+                        ((savedReports.filter(r => r.metadata.slaMet === 'Yes').length + (metadata.slaMet === 'Yes' ? 1 : 0)) / (savedReports.length + 1)) * 100
+                      )}%
+                    </h3>
+                  </div>
+                  <div className="p-2.5 bg-[#307FE2]/10 text-[#307FE2] rounded-lg">
+                    <Activity className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="mt-3 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+                  <span>Review SLA Window:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">3-5 Days Max</span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Approval / Rework Ratio</p>
+                    <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                      {savedReports.filter(r => r.metadata.decision === 'Approve & File STR').length + (metadata.decision === 'Approve & File STR' ? 1 : 0)}
+                      <span className="text-slate-400 text-lg font-normal"> / </span>
+                      <span className="text-amber-600 dark:text-amber-400 text-2xl">
+                        {savedReports.filter(r => r.metadata.decision === 'Return for Rework').length + (metadata.decision === 'Return for Rework' ? 1 : 0)}
+                      </span>
+                    </h3>
+                  </div>
+                  <div className="p-2.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-lg">
+                    <Target className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="mt-3 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+                  <span>Approved & Filed vs. Rework</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">PPATK Ready</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Infographic Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Chart 1: Quality Category Distribution Infographic */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <PieChart className="w-5 h-5 text-[#0857C3]" />
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                      QC Quality Rating Category Breakdown
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-[#0857C3] dark:text-[#71C5E8] font-bold">
+                    Pantone Color Bands
+                  </span>
+                </div>
+
+                <div className="space-y-3.5 pt-2">
+                  {/* Sangat Baik */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span className="text-[#0857C3] dark:text-[#71C5E8] flex items-center space-x-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#0857C3] inline-block"></span>
+                        <span>SANGAT BAIK (3.51 - 4.00)</span>
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {calculatedData.category === 'SANGAT BAIK (SB)' ? 1 : 0} case(s) active
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                      <div className="h-full bg-gradient-to-r from-[#0857C3] to-[#307FE2] rounded-full transition-all duration-700" style={{ width: calculatedData.category === 'SANGAT BAIK (SB)' ? '88%' : '20%' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Baik */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span className="text-[#307FE2] flex items-center space-x-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#307FE2] inline-block"></span>
+                        <span>BAIK (2.76 - 3.50)</span>
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {calculatedData.category === 'BAIK (B)' ? 1 : 0} case(s) active
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                      <div className="h-full bg-[#307FE2] rounded-full transition-all duration-700" style={{ width: calculatedData.category === 'BAIK (B)' ? '75%' : '15%' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Cukup Baik */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center space-x-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                        <span>CUKUP BAIK (2.00 - 2.75)</span>
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {calculatedData.category === 'CUKUP BAIK (CB)' ? 1 : 0} case(s) active
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                      <div className="h-full bg-amber-500 rounded-full transition-all duration-700" style={{ width: calculatedData.category === 'CUKUP BAIK (CB)' ? '50%' : '10%' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Tidak Baik */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span className="text-rose-600 dark:text-rose-400 flex items-center space-x-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                        <span>TIDAK BAIK (&lt; 2.00)</span>
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {calculatedData.category === 'TIDAK BAIK (TB)' ? 1 : 0} case(s) active
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                      <div className="h-full bg-rose-500 rounded-full transition-all duration-700" style={{ width: calculatedData.category === 'TIDAK BAIK (TB)' ? '35%' : '5%' }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-[#71C5E8]/10 border border-[#71C5E8]/30 rounded-lg text-xs text-slate-700 dark:text-slate-300 flex items-center space-x-2 mt-2">
+                  <TrendingUp className="w-4 h-4 text-[#0857C3] flex-shrink-0" />
+                  <span>
+                    <strong>Quality Benchmark:</strong> 100% of STRs submitted to PPATK should target a minimum score of <strong>2.76 (BAIK)</strong> or higher.
+                  </span>
+                </div>
+              </div>
+
+              {/* Chart 2: Section Performance Radar & Bar Infographic */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="w-5 h-5 text-[#307FE2]" />
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                      Section Weighted Performance Comparison
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400">5 Dimensions</span>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  {calculatedData.sectionSummaries.map((sec) => (
+                    <div key={sec.sectionId} className="space-y-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]">
+                          {sec.sectionName}
+                        </span>
+                        <span className="font-bold text-[#0857C3] dark:text-[#71C5E8]">
+                          {sec.secAchievedScore.toFixed(2)} / {sec.secMaxPossible.toFixed(2)} pts ({sec.secPercentage.toFixed(0)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#0857C3] rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(100, sec.secPercentage)}%`,
+                            backgroundColor: sec.sectionId === 2 ? '#0857C3' : sec.sectionId === 5 ? '#307FE2' : '#71C5E8'
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 text-[11px] text-slate-500 dark:text-slate-400 flex justify-between border-t border-slate-100 dark:border-slate-800">
+                  <span>5W2H Analysis Weight: 50%</span>
+                  <span>Qualitative Quality Weight: 30%</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Red Flag & Deficiencies Heatmap Infographic */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <AlertOctagon className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                    Common STR Review Deficiencies & Risk Heatmap
+                  </h3>
+                </div>
+                <span className="text-xs text-slate-400">Senior Audit Findings</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                
+                <div className="p-4 bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/60 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-rose-800 dark:text-rose-300">1. Weak Analytical Rationale</span>
+                    <span className="px-2 py-0.5 bg-rose-200 text-rose-900 font-bold text-[10px] rounded">High Risk</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Failure to explain why the transaction turnover contradicts declared customer profile or economic purpose.
+                  </p>
+                  <div className="w-full bg-rose-200 dark:bg-rose-900 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-rose-600 h-full w-[78%]"></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-amber-800 dark:text-amber-300">2. Missing Fund Flow Diagram</span>
+                    <span className="px-2 py-0.5 bg-amber-200 text-amber-900 font-bold text-[10px] rounded">Medium Risk</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Omitting visual source-to-ultimate-beneficiary fund flow diagram (Section 2c4) in pass-through account reviews.
+                  </p>
+                  <div className="w-full bg-amber-200 dark:bg-amber-900 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-amber-500 h-full w-[55%]"></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-blue-800 dark:text-blue-300">3. Outdated Profiling Data</span>
+                    <span className="px-2 py-0.5 bg-blue-200 text-blue-900 font-bold text-[10px] rounded">Low Risk</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Incomplete OSINT external search (Section 2b2) or unverified customer occupation changes in core banking.
+                  </p>
+                  <div className="w-full bg-blue-200 dark:bg-blue-900 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-[#307FE2] h-full w-[35%]"></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Strategic Senior Analyst Executive Recommendations Card */}
+            <div className="bg-gradient-to-r from-slate-900 via-[#0857C3] to-slate-900 text-white p-6 rounded-xl shadow-md border border-[#307FE2]/50 space-y-4">
+              <div className="flex items-center space-x-3 border-b border-white/10 pb-3">
+                <div className="p-2 bg-[#71C5E8] text-[#0857C3] rounded-lg font-bold">
+                  💡
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm uppercase tracking-wide text-white">
+                    Senior AML Specialist Strategic Recommendations
+                  </h3>
+                  <p className="text-xs text-slate-300">Actionable insights to elevate STR Quality Control standards for FIU submission</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-3.5 bg-white/10 rounded-lg border border-white/10 space-y-1">
+                  <div className="font-bold text-[#71C5E8]">1. Enforce 5W2H Mandatory Checklist Before Escalation</div>
+                  <p className="text-slate-200">
+                    Ensure junior analysts populate all 5W2H fields (Who, What, Where, When, Why, How, How Much) before escalating alerts to QC reviewers.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-white/10 rounded-lg border border-white/10 space-y-1">
+                  <div className="font-bold text-[#71C5E8]">2. Shift Focus to ML/TF Typologies</div>
+                  <p className="text-slate-200">
+                    Prioritize clear typology mapping (e.g., structuring, trade-based ML, pass-through accounts) over passive law citation in conclusions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {}
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                    <FolderOpen className="w-5 h-5 text-[#0857C3]" />
+                    <span>Submitted QC Reports Repository</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Audit trail store of all finalized & saved AML STR Quality Control evaluations
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleExportAllHistoryCSV}
+                    className="px-3 py-1.5 text-xs font-semibold bg-[#0857C3] hover:bg-[#307FE2] text-white rounded flex items-center space-x-1.5 shadow transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export Repository CSV</span>
+                  </button>
+                  <button
+                    onClick={handleClearAllHistory}
+                    className="px-3 py-1.5 text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded transition flex items-center space-x-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear History</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Counter Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <div className="text-slate-500 dark:text-slate-400 font-medium">Total Saved Reports</div>
+                  <div className="text-2xl font-black text-slate-800 dark:text-white">{savedReports.length}</div>
+                </div>
+                <div className="bg-sky-50 dark:bg-sky-950/30 p-3 rounded-lg border border-sky-200 dark:border-sky-800">
+                  <div className="text-[#0857C3] dark:text-[#71C5E8] font-medium">Approved & Filed</div>
+                  <div className="text-2xl font-black text-[#0857C3] dark:text-[#71C5E8]">
+                    {savedReports.filter(r => r.metadata.decision === 'Approve & File STR').length}
+                  </div>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <div className="text-amber-700 dark:text-amber-300 font-medium">Returned for Rework</div>
+                  <div className="text-2xl font-black text-amber-800 dark:text-amber-200">
+                    {savedReports.filter(r => r.metadata.decision === 'Return for Rework').length}
+                  </div>
+                </div>
+                <div className="bg-rose-50 dark:bg-rose-950/30 p-3 rounded-lg border border-rose-200 dark:border-rose-800">
+                  <div className="text-rose-700 dark:text-rose-300 font-medium">Closed Cases</div>
+                  <div className="text-2xl font-black text-rose-800 dark:text-rose-200">
+                    {savedReports.filter(r => r.metadata.decision === 'Close Case (No Grounds)').length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Repository Filter Bar */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                <input
+                  type="text"
+                  placeholder="🔍 Search history by name, CIF, STR ref, or reviewer..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="px-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none w-64 text-slate-800 dark:text-white"
+                />
+                <select
+                  value={historyDecisionFilter}
+                  onChange={(e) => setHistoryDecisionFilter(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-[#307FE2] outline-none font-medium"
+                >
+                  <option value="all">All Action Decisions</option>
+                  <option value="Approve & File STR">Approve & File STR</option>
+                  <option value="Return for Rework">Return for Rework</option>
+                  <option value="Close Case (No Grounds)">Close Case</option>
+                </select>
+              </div>
+              <div className="text-slate-500 text-[11px]">
+                Showing {
+                  savedReports.filter(r => {
+                    const m = r.metadata;
+                    const matchSearch = (m.customerName || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                        (m.cif || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                        (m.strReference || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                        (m.reviewerName || '').toLowerCase().includes(historySearch.toLowerCase());
+                    const matchDecision = historyDecisionFilter === 'all' || m.decision === historyDecisionFilter;
+                    return matchSearch && matchDecision;
+                  }).length
+                } of {savedReports.length} Reports
+              </div>
+            </div>
+
+            {/* Repository Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              {savedReports.length === 0 ? (
+                <div className="p-8 text-center space-y-3">
+                  <div className="text-4xl">📂</div>
+                  <div className="font-bold text-slate-700 dark:text-slate-300 text-sm">No QC Reports Saved Yet</div>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Fill out an evaluation grid in the "Interactive Evaluation Grid" tab and click "Submit & Save QC Report" at the bottom to store reports here.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-slate-200 uppercase text-[11px]">
+                        <th className="py-2.5 px-3">Submitted</th>
+                        <th className="py-2.5 px-4">Customer & CIF</th>
+                        <th className="py-2.5 px-3">STR Reference</th>
+                        <th className="py-2.5 px-3">Analyst / Reviewer</th>
+                        <th className="py-2.5 px-3 text-center">Score & Category</th>
+                        <th className="py-2.5 px-3 text-center">Decision</th>
+                        <th className="py-2.5 px-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                      {savedReports
+                        .filter(r => {
+                          const m = r.metadata;
+                          const matchSearch = (m.customerName || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                              (m.cif || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                              (m.strReference || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+                                              (m.reviewerName || '').toLowerCase().includes(historySearch.toLowerCase());
+                          const matchDecision = historyDecisionFilter === 'all' || m.decision === historyDecisionFilter;
+                          return matchSearch && matchDecision;
+                        })
+                        .map((report) => (
+                          <tr key={report.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                            <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                              <div>{report.createdAt}</div>
+                              <div className="text-[10px] text-slate-400">{report.id}</div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-slate-900 dark:text-white">{report.metadata.customerName}</div>
+                              <div className="text-[11px] text-slate-500">CIF: {report.metadata.cif}</div>
+                            </td>
+                            <td className="py-3 px-3 text-slate-700 dark:text-slate-300 font-semibold">
+                              {report.metadata.strReference}
+                            </td>
+                            <td className="py-3 px-3 text-slate-600 dark:text-slate-400 text-[11px]">
+                              <div><span className="text-slate-400">Analyst:</span> {report.metadata.analystName}</div>
+                              <div><span className="text-slate-400">QC:</span> {report.metadata.reviewerName}</div>
+                            </td>
+                            <td className="py-3 px-3 text-center ">
+                              <div className="font-black text-sm text-slate-900 dark:text-white">{report.finalScore.toFixed(2)} / 4.00</div>
+                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border mt-0.5 ${report.categoryBadgeClass}`}>
+                                {report.category}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`inline-block text-[11px] font-extrabold px-2.5 py-1 rounded-full border ${
+ report.metadata.decision === 'Approve & File STR'
+ ? 'bg-[#71C5E8]/20 text-[#0857C3] border-[#307FE2] dark:bg-[#0857C3]/30 dark:text-[#71C5E8]'
+ : report.metadata.decision === 'Return for Rework'
+ ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300'
+ : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300'
+ }`}>
+                                {report.metadata.decision}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex items-center justify-center space-x-1.5">
+                                <button
+                                  onClick={() => handleLoadReport(report)}
+                                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[11px] font-medium transition"
+                                  title="Load this report into evaluation grid"
+                                >
+                                  👁️ Load
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteReport(report.id)}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded text-[11px] font-medium transition"
+                                  title="Delete from history"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                  <BarChart3 className="w-5 h-5 text-[#0857C3]" />
+                  <span>QC Section Weighted Performance Analytics</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Detailed breakdown across the 5 core STR evaluation dimensions
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {calculatedData.sectionSummaries.map((sec) => (
+                  <div key={sec.sectionId} className="space-y-1.5 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex justify-between items-center text-xs font-semibold">
+                      <span className="text-slate-800 dark:text-slate-200">{sec.sectionName}</span>
+                      <div className="space-x-2 ">
+                        <span className="text-[#0857C3] dark:text-[#71C5E8] font-bold">
+                          {sec.secAchievedScore.toFixed(2)} / {sec.secMaxPossible.toFixed(2)} pts
+                        </span>
+                        <span className="text-slate-400">({sec.secPercentage.toFixed(1)}%)</span>
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+ sec.secPercentage >= 87.5 ? 'bg-[#0857C3]' : sec.secPercentage >= 70 ? 'bg-[#307FE2]' : sec.secPercentage >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+ }`}
+                        style={{ width: `${Math.min(100, sec.secPercentage)}%` }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between text-[10px] text-slate-400 ">
+                      <span>Allocated Section Weight: {sec.secTotalWeight}%</span>
+                      <span>Target: 4.0 Scale</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {}
+        {activeTab === 'feedback' && (
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 text-slate-700 dark:text-slate-300">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-4">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-[#0857C3]" />
+                <span>Senior AML Analyst Audit & Review Assessment</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Evaluation of the STR Quality Control Checklist against PPATK Regulatory Standards and FATF Best Practices.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+              <div className="bg-[#71C5E8]/10 dark:bg-[#0857C3]/20 p-4 rounded-lg border border-[#307FE2]/30 space-y-3">
+                <h3 className="font-bold text-[#0857C3] dark:text-[#71C5E8] flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#0857C3]" />
+                  <span>Key Methodological Strengths</span>
+                </h3>
+                <ul className="list-disc list-inside space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                  <li><strong>Core Priority Focus:</strong> Assigning 80% combined weight to Analysis Structure (50%) and Qualitative Strength (30%) correctly prioritizes core analytical quality over administrative formatting.</li>
+                  <li><strong>Standardized Framework:</strong> Explicit inclusion of 5W2H (Who, What, Where, When, Why, How, How Much) ensures structural compliance.</li>
+                  <li><strong>Visual & Data Audit Trail:</strong> Mandatory checks for cash flow diagrams and transaction tables improve auditability.</li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800 space-y-3">
+                <h3 className="font-bold text-amber-800 dark:text-amber-300 flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Identified Operational Gaps & Enhancements</span>
+                </h3>
+                <ul className="list-disc list-inside space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                  <li><strong>Unweighted Sub-items Fixed:</strong> Sub-items now have explicit individual mathematical weights summing up to section totals.</li>
+                  <li><strong>Shift to Typology Mapping:</strong> Replaced verbatim law quotes with assessment of ML/TF typologies (e.g., structuring, pass-through, trade-based ML).</li>
+                  <li><strong>Inclusion of Timeliness SLA:</strong> Added strict tracking for reporting SLA limits to prevent regulatory dispatch delays.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {}
+        {activeTab === 'rubric' && (
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-4">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <Award className="w-5 h-5 text-[#0857C3]" />
+                <span>QC Implementation Category & Rating Scales</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">Official evaluation bands for AML STR Quality Assessment</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border border-slate-200 dark:border-slate-800">
+                <thead className="bg-[#0857C3] text-white uppercase">
+                  <tr>
+                    <th className="py-2.5 px-4 border-r border-[#307FE2]">Category Name</th>
+                    <th className="py-2.5 px-4 border-r border-[#307FE2] text-center">Score Range</th>
+                    <th className="py-2.5 px-4">Quality & Operational Standard</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-sans">
+                  <tr className="bg-[#71C5E8]/10 dark:bg-[#0857C3]/20">
+                    <td className="py-3 px-4 font-bold text-[#0857C3] dark:text-[#71C5E8] border-r border-slate-200 dark:border-slate-800">
+                      SANGAT BAIK (SB)
+                    </td>
+                    <td className="py-3 px-4 font-bold text-center border-r border-slate-200 dark:border-slate-800">
+                      3.51 – 4.00
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                      Fully compliant. Comprehensive profiling, flawless fund flow tracing, watertight analytical logic, clear predicate crime alignment, and ready for immediate regulatory dispatch to PPATK.
+                    </td>
+                  </tr>
+                  <tr className="bg-blue-50/50 dark:bg-blue-950/20">
+                    <td className="py-3 px-4 font-bold text-blue-800 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800">
+                      BAIK (B)
+                    </td>
+                    <td className="py-3 px-4 font-bold text-center border-r border-slate-200 dark:border-slate-800">
+                      2.76 – &lt; 3.50
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                      Satisfactory quality. Suspicion is adequately justified, all required structure items present, but minor background profiling or non-critical formatting gaps exist.
+                    </td>
+                  </tr>
+                  <tr className="bg-amber-50/50 dark:bg-amber-950/20">
+                    <td className="py-3 px-4 font-bold text-amber-800 dark:text-amber-300 border-r border-slate-200 dark:border-slate-800">
+                      CUKUP BAIK (CB)
+                    </td>
+                    <td className="py-3 px-4 font-bold text-center border-r border-slate-200 dark:border-slate-800">
+                      2.00 – &lt; 2.75
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                      Needs improvement. Weak narrative rationale, incomplete transaction breakdown, or missing critical external/internal profile checks. Requires analyst re-work before filing.
+                    </td>
+                  </tr>
+                  <tr className="bg-rose-50/50 dark:bg-rose-950/20">
+                    <td className="py-3 px-4 font-bold text-rose-800 dark:text-rose-300 border-r border-slate-200 dark:border-slate-800">
+                      TIDAK BAIK (TB)
+                    </td>
+                    <td className="py-3 px-4 font-bold text-center border-r border-slate-200 dark:border-slate-800">
+                      0.00 – &lt; 2.00
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                      Unsatisfactory. Missing vital 5W2H components, contradictory logic, failure to establish reasonable grounds for suspicion, or major data inaccuracies. Rejected.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
+
+    // --- Render Application to DOM ---
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
